@@ -16,8 +16,10 @@ jobs:
         uses: actions/setup-java@v2
         with:
           java-version: '11'
-          distribution: 'adopt'
-
+          distribution: 'temurin'
+          architecture: 'x64'
+      - run: java -cp java HelloWorldApp
+      
       - name: Build and Dockerize with Jib
         run: mvn compile jib:build
 
