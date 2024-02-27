@@ -1,0 +1,44 @@
+name: Dockerize and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          java-version: '11'
+
+      - name: Build and Dockerize with Jib
+        run: mvn compile jib:build
+
+      - name: Run SAST Scan with Fortify
+        run: mvn fortify:scan
+
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+      - name: Login to AWS ECR
+        run: aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/u1u3e1y1
+
+      - name: Push Docker Image to AWS ECR
+        run: docker push public.ecr.aws/u1u3e1y1/github-actions:latest
+
+      - name: Scan Docker Image in ECR
+        run: |
+          aws ecr start-image-scan --repository-name github-actions:latest --image-id imageDigest=$(aws ecr list-images --repository-name github-actions:latest --filter tagStatus=TAGGED --query 'imageIds[0].imageDigest' --output text) --region us-east-1
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl create deployment hello-world --image=public.ecr.aws/u1u3e1y1/github-actions:latest
+          kubectl expose deployment hello-world --type=LoadBalancer --port=80 --target-port=8080
